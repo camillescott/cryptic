@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "cryptic"
+version = "0.1.0"
+description = ""
+authors = ["Camille Scott <camille.scott.w@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.scripts]
+cryptic = "cryptic.__main__:main" 
+
+[tool.poetry.dependencies]
+python = "^3.12"
+openai = "^1.52.1"
+rich = "^13.9.3"
+python-frontmatter = "^1.1.0"
+
+
+[tool.poetry.group.dev.dependencies]
+ipython = "^8.28.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
