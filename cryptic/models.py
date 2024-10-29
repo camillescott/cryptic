@@ -151,6 +151,8 @@ class SoftwareInfo(CrypticModel):
     summary: str = PageSummary
     language: str
     '''Primary language its written in, or Unknown'''
+    authors: list[str]
+    '''Primary authors or maintainers, maximum 5'''
 
 
 class ReferenceInfo(CrypticModel):
@@ -162,15 +164,31 @@ NoteInfo = PaperInfo | ArticleInfo | EventInfo | ProductInfo | \
            DiscussionInfo | MediaInfo | SoftwareInfo | ReferenceInfo
 
 
-class NoteSummary(CrypticModel):
-    category: PageCategory
-
+class BaseNoteSummary(CrypticModel):
     tags: list[str]
     '''Relevant tags focusing on key topics, preferring single words over phrases. 
     Focus on the big picture. If you must use a multiword tag, separate the words with "-",
     like: word1-word2. 4 to 7 total. All lowercase.'''
 
+
+class NoteSummary(BaseNoteSummary):
+    category: PageCategory
     info: NoteInfo
     '''Additional information on the page, depending on its category'''
 
 
+class SoftwareSummary(BaseNoteSummary):
+    info: SoftwareInfo
+
+
+class ReferenceSummary(BaseNoteSummary):
+    info: ReferenceInfo
+
+
+def summary_schema_from_category(category: PageCategory):
+    for subschema in BaseNoteSummary.__subclasses__():
+        if subschema is NoteSummary:
+            continue
+        if subschema.__annotations__['info'].__annotations__['category'].__args__[0] == category.value:
+            return subschema
+    return NoteSummary

@@ -8,19 +8,45 @@
 
 from argparse import Action, ArgumentParser, _SubParsersAction, Namespace
 from collections import deque
+from enum import Enum
 from itertools import pairwise
 from pathlib import Path
-import sys
 from typing import Callable, Concatenate, ParamSpec
 
 from rich.console import Console
 
 from .chat import summarize_page
+from .models import NoteSummary, PageCategory, summary_schema_from_category
 from .note import WebNote
 
 
 P = ParamSpec('P')
 NamespaceFunc = Callable[Concatenate[Namespace, P], int | None]
+
+
+class EnumAction(Action):
+
+    def __init__(self, **kwargs):
+        # Pop off the type value
+        enum = kwargs.pop("type", None)
+
+        # Ensure an Enum subclass is provided
+        if enum is None:
+            raise ValueError("type must be assigned an Enum when using EnumAction")
+        if not issubclass(enum, Enum):
+            raise TypeError("type must be an Enum when using EnumAction")
+
+        # Generate choices from the Enum
+        kwargs.setdefault("choices", tuple(e.name for e in enum))
+
+        super(EnumAction, self).__init__(**kwargs)
+
+        self._enum = enum
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Convert value back into an Enum
+        enum = self._enum[values]
+        setattr(namespace, self.dest, enum)
 
 
 class SubcmdHelper:
@@ -110,11 +136,9 @@ class CmdTree:
                          aliases: list[str] | None = None,
                          help: str | None = None):
         if (subaction := self._get_subparser_action(root)) is None:
-            #print(root, 'does not have subparsers, adding')
             subaction = root.add_subparsers()
         child = subaction.add_parser(child_name, help=help, aliases=aliases if aliases else [])
         cmd_func = (lambda _: child.print_help()) if func is None else func
-        print('func:', cmd_func)
         child.set_defaults(func=cmd_func)
         return child
 
@@ -133,10 +157,8 @@ class CmdTree:
         for i, j in pairwise(range(len(chain))):
             if chain[j] is None:
                 if cmd_fullname[j] == leaf_name:
-                    #print('chain right None and leaf')
                     return self._add_child(chain[i], leaf_name, func=cmd_func, aliases=aliases, help=help)
                 else:
-                    #print('chain right None and not leaf')
                     child = self._add_child(chain[i], cmd_fullname[j])
                     chain[j] = child
         raise ValueError(f'{leaf_name} was not registered')
@@ -157,24 +179,49 @@ class CmdTree:
 
 commands = CmdTree()
 
+
 @commands.register(['process', 'note'],
                    help='Process a note with the LLM and rewrite it.')
 def process_note(args: Namespace):
     console = Console(stderr=True)
-    console.print(f'Load {args.note}...')
+    console.log(f'Load {args.note}...')
     note = WebNote(args.note)
-    console.print(f'Send to LLM...')
-    summary, completion = summarize_page(note.content)
-    if summary is None:
-        console.print(f'[red] Error processing note!')
+
+    if note.cryptic_processed and not args.force:
+        console.log('[red] Note already processed and not --force, exiting.')
         return 1
-    console.print(f'Processed note using {completion.usage.total_tokens} tokens.')
-    console.print('Update and save note...')
+
+    if args.category:
+        schema = summary_schema_from_category(args.category)
+        console.log(f'[yellow] Forcing {schema} as Schema')
+    else:
+        schema = NoteSummary
+
+    with console.status(f'[bold blue]Wait for OpenAI response...') as status:
+        summary, completion = summarize_page(note.content, schema=schema)
+        if summary is None:
+            console.print(f'[red] Error processing note!')
+            return 1
+
+    console.log(f'Processed note using {completion.usage.total_tokens} tokens.')
+    console.print(summary)
+
+    console.log('Update and save note...')
     note.process_summary(summary)
     note.save()
+
+    console.rule('Processed Note')
+    note.to_console(console)
+
+    return 0
     
 
 @process_note.args
 def _(parser: ArgumentParser):
     parser.add_argument('--note', '-i', type=Path, required=True)
+    parser.add_argument('--force', '-f', default=False, action='store_true')
 
+
+@process_note.args
+def category_arg(parser: ArgumentParser):
+    parser.add_argument('--category', '-c', type=PageCategory, action=EnumAction)

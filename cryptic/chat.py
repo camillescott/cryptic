@@ -6,10 +6,11 @@
 # Date   : 23.10.2024
 # (c) Camille Scott, 2024
 
+from typing import Type
 
 from openai import OpenAI
 
-from .models import NoteSummary
+from .models import BaseNoteSummary, NoteSummary
 
 
 OPENAI_MODELS = {
@@ -19,7 +20,8 @@ OPENAI_MODELS = {
 
 
 def summarize_page(content: str,
-                   model: str = 'gpt-4o-mini'):
+                   model: str = 'gpt-4o-mini',
+                   schema: Type[BaseNoteSummary] = NoteSummary):
     client = OpenAI()
     completion = client.beta.chat.completions.parse(
         model=model,
@@ -28,6 +30,6 @@ def summarize_page(content: str,
              "content": "You are an expert at structured data extraction. You will be given unstructured source from a webpage and should convert it to the given format."},
             {"role": "user", "content": content}
         ],
-        response_format=NoteSummary,
+        response_format=schema,
     )
     return completion.choices[0].message.parsed, completion

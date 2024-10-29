@@ -11,10 +11,13 @@ from pathlib import Path
 import re
 
 import frontmatter as fm
+from rich.console import Console
+from rich.markdown import Markdown
 
 from .markdown import noteinfo_to_md
 
-from .models import (NoteSummary,
+from .models import (BaseNoteSummary,
+                     NoteSummary,
                      PageCategory,
                      NoteInfo,
                      PaperInfo,
@@ -59,9 +62,9 @@ class Note(fm.Post):
                      tag in self.metadata.get('tags', list())})
         self.metadata['tags'] = tags
 
-    def add_tags(self, tags):
+    def add_tags(self, other_tags):
         tags = set(self.metadata['tags'])
-        tags.update({normalize_tag(tag) for tag in tags})
+        tags.update({normalize_tag(tag) for tag in other_tags})
         self.metadata['tags'] = list(tags)
 
     @property
@@ -71,6 +74,20 @@ class Note(fm.Post):
     @title.setter
     def title(self, new_title: str):
         self.metadata['title'] = new_title
+
+    @property
+    def cryptic_processed(self):
+        return self.metadata.get('cryptic_processed', False)
+
+    @cryptic_processed.setter
+    def cryptic_processed(self, value: bool):
+        self.metadata['cryptic_processed'] = value
+
+    def to_console(self, console: Console):
+        console.print('---')
+        console.print(fm.YAMLHandler().export(self.metadata))
+        console.print('---')
+        console.print(Markdown(self.content))
 
 
 class WebNote(Note):
@@ -87,12 +104,14 @@ class WebNote(Note):
         self.metadata['category'] = category.value
 
 
-    def process_summary(self, summary: NoteSummary):
-        self.category = summary.category
+    def process_summary(self, summary: BaseNoteSummary):
+        if isinstance(summary, NoteSummary):
+            self.category = summary.category
         self.add_tags(summary.tags)
 
         self.content = noteinfo_to_md(summary.info)
         self.process_info(summary.info)
+        self.cryptic_processed = True
 
     @singledispatchmethod
     def process_info(self, info: NoteInfo):
@@ -101,6 +120,7 @@ class WebNote(Note):
     @process_info.register
     def _(self, info: PaperInfo):
         self.title = info.title
+        self['aliases'][0] = info.title
         self['author'] = info.authors
         self['journal'] = info.journal
         self['doi'] = info.doi
@@ -117,6 +137,7 @@ class WebNote(Note):
     @process_info.register
     def _(self, info: ProductInfo):
         self.title = info.name
+        self['aliases'][0] = info.name
         self['price'] = info.price
 
     @process_info.register
@@ -124,4 +145,8 @@ class WebNote(Note):
         self['media_type'] = info.media_type.value
         self['artist'] = info.artist
 
+    @process_info.register
+    def _(self, info: SoftwareInfo):
+        self['prog_lang'] = info.language.lower()
+        self['author'] = info.authors
 
