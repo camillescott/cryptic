@@ -11,6 +11,7 @@ import sys
 
 from .cmds import commands
 
+
 def main():
     return commands.run()
 
