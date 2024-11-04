@@ -13,10 +13,16 @@ python = "^3.12"
 openai = "^1.52.1"
 rich = "^13.9.3"
 python-frontmatter = "^1.1.0"
+ponderosa = {extras = ["rich"], version = "^0.4.1"}
 
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.28.0"
+
+
+[tool.poetry.group.tests.dependencies]
+pytest = "^8.3.3"
+tox = "^4.23.2"
 
 [build-system]
 requires = ["poetry-core"]
