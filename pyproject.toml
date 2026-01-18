@@ -13,7 +13,8 @@ python = "^3.12"
 openai = "^1.52.1"
 rich = "^13.9.3"
 python-frontmatter = "^1.1.0"
-ponderosa = {extras = ["rich"], version = "^0.4.1"}
+ponderosa = {extras = ["rich"], version = "^0.5.1"}
+pillow = "^11.0.0"
 
 
 [tool.poetry.group.dev.dependencies]
