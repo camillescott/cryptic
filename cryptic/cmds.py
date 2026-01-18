@@ -8,6 +8,7 @@
 
 from argparse import Namespace
 from pathlib import Path
+import shutil
 
 from rich.console import Console
 
@@ -49,6 +50,10 @@ def process_note(args: Namespace):
     console.log(f'Processed note using {completion.usage.total_tokens} tokens.')
     console.print(summary)
 
+    if args.backup:
+        console.log('Backup note...')
+        shutil.copy(args.note, args.note.with_suffix('.bak'))
+
     console.log('Update and save note...')
     note.process_summary(summary)
     note.save()
@@ -63,4 +68,5 @@ def process_note(args: Namespace):
 def _(parser: ArgParser):
     parser.add_argument('--note', '-i', type=Path, required=True)
     parser.add_argument('--force', '-f', default=False, action='store_true')
+    parser.add_argument('--backup', '-b', default=False, action='store_true')
 
