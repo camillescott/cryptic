@@ -8,30 +8,55 @@
 
 from enum import Enum
 from textwrap import dedent
-from typing import Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .markdown import (
+    MdFrontmatter,
+    MdSection,
+    MdSkip,
+    apply_frontmatter as _apply_frontmatter,
+    render as _render,
+)
+
 
 class CrypticModel(BaseModel):
-   model_config = ConfigDict(use_attribute_docstrings=True)
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    def to_markdown(self) -> str:
+        return _render(self)
+
+    def apply_frontmatter(self, target: dict[str, Any]) -> None:
+        _apply_frontmatter(self, target)
 
 
 class PageCategory(str, Enum):
     '''
-    The category of the page, given its content and code. Categories are:
-    article: news articles, opinion pieces, analysis pieces
-    paper: scientific publications and preprints
-    event: pages describing some event, like a music festival or conference
-    webapp: interactive applications and calculators
-    discussion: forum threads, issues, question answer pages
-    software: software repositories such a github or gitlab repos, or pages for software and libraries, including sofware documentation sites
-    financial: banking, investment, cryptocurrency
-    product: pages for specific products
-    store: online storefronts, as opposed to specific product pages
-    media: multimedia pages: youtube videos, music links, art and visual media, books
-    reference: general knowledge articles, encyclopedia articles, informational
-    other: pages that don't fit any of the other categories well
+    The category of the page, given its content and context.
+    Categories:
+      article: news articles, opinion pieces, analysis pieces, blog posts
+      paper: scientific publications and preprints (incl. arXiv, bioRxiv)
+      event: pages describing a single event (festival, conference, talk)
+      webapp: interactive applications, calculators, demos
+      discussion: forum threads, issues, Q&A pages, comment threads
+      software: code repos (github/gitlab), package pages, software docs
+      financial: banking, investing, cryptocurrency, market pages
+      product: a page for one specific product
+      store: a storefront listing many products
+      media: youtube videos, music, art, books, podcasts
+      reference: encyclopedia-style, definitional, or look-up content
+      other: only when none of the above is a defensible fit
+
+    Disambiguation:
+    - Prefer the more specific category. A scientific blog post is
+      `article`, not `reference`. A GitHub README is `software`, not
+      `reference`. A specific iPhone listing is `product`, the Apple
+      store homepage is `store`.
+    - `paper` is for the artifact itself; a write-up *about* a paper
+      is `article`.
+    - `discussion` requires actual back-and-forth (multiple participants
+      or replies). A single-author Q&A explainer is `reference`.
     '''
 
     article = 'article'
@@ -50,84 +75,133 @@ class PageCategory(str, Enum):
 
 PageSummary = Field(description=dedent(
 '''
-50 words or less focusing on the core functionality and/or content.
+Single paragraph describing what the page is about. 50 words or less.
+No preamble like "this page discusses". Write declaratively.
 '''
-))
+).strip())
 
 
 TakeAways = Field(description=dedent(
 '''
-3 most important takeaways, not more than 30 words per takeaway.
+Up to 3 concrete takeaways — specific claims, findings, or conclusions
+that someone reading only the takeaways would still learn the gist.
+30 words or less each. Return an empty list if the source has no
+actionable claims.
 '''
-))
+).strip())
 
 
 FoundationalWork = Field(description=dedent(
 '''
-50 words or less describing foundational work the article is built upon,
-with author names and Markdown links to those works if possible.
+Up to 50 words describing prior work this builds on, with author names
+and Markdown links *only when the source explicitly cites them with
+URLs*. Use 'none' if the source does not cite prior work.
 '''
-))
+).strip())
+
 
 class PaperInfo(CrypticModel):
-    category: Literal['paper']
-    summary: str = PageSummary
-    original_title: str
-    authors: list[str]
-    journal: str
-    '''The name of the journal.'''
-    abstract: str
-    '''The entire abstract of the paper.'''
-    doi: str
-    '''format: doi.org/[remainder of DOI]'''
-    takeaways: list[str] = TakeAways
-    foundations: str = FoundationalWork
+    category: Annotated[Literal['paper'], MdSkip()]
+    summary: Annotated[str, MdSection()] = PageSummary
+    original_title: Annotated[
+        str,
+        MdSkip(),
+        MdFrontmatter(key='aliases', transform=lambda v: [v]),
+    ]
+    '''The paper's title exactly as it appears in the source (preserve
+    capitalization and punctuation). Distinct from the note's filename title.'''
+    authors: Annotated[list[str], MdSkip(), MdFrontmatter(key='author')]
+    '''Author names in the order shown in the byline. Names only, no
+    affiliations or email addresses.'''
+    journal: Annotated[str, MdSkip(), MdFrontmatter(key='journal')]
+    '''Journal or preprint server name (e.g., "Nature", "arXiv"). Use
+    'unknown' if not stated.'''
+    abstract: Annotated[
+        str,
+        MdSection(),
+        Field(serialization_alias='Abstract'),
+    ]
+    '''The complete abstract verbatim, or 'unknown' if no abstract is
+    present.'''
+    doi: Annotated[str, MdSkip(), MdFrontmatter(key='doi')]
+    '''DOI as `doi.org/<suffix>`, or an arXiv id (`arxiv.org/abs/<id>`),
+    or 'unknown'. Do not invent a DOI.'''
+    foundations: Annotated[
+        str,
+        MdSection(),
+        Field(serialization_alias='Foundational Work'),
+    ] = FoundationalWork
+    takeaways: Annotated[
+        list[str],
+        MdSection(style='bullets'),
+        Field(serialization_alias='Takeaways'),
+    ] = TakeAways
 
 
 class ArticleInfo(CrypticModel):
-    category: Literal['article']
-    summary: str = PageSummary
-    takeaways: list[str] = TakeAways
-    foundations: str = FoundationalWork
+    category: Annotated[Literal['article'], MdSkip()]
+    summary: Annotated[str, MdSection()] = PageSummary
+    foundations: Annotated[
+        str,
+        MdSection(),
+        Field(serialization_alias='Foundational Work'),
+    ] = FoundationalWork
+    takeaways: Annotated[
+        list[str],
+        MdSection(style='bullets'),
+        Field(serialization_alias='Takeaways'),
+    ] = TakeAways
 
 
 class EventInfo(CrypticModel):
-    category: Literal['event']
-    summary: str = PageSummary
-    start_date: str
-    '''format: YYYY-MM-DD'''
-    end_date: str
-    '''format: YYYY-MM-DD'''
+    category: Annotated[Literal['event'], MdSkip()]
+    summary: Annotated[str, MdSection()] = PageSummary
+    start_date: Annotated[str, MdSkip(), MdFrontmatter(key='start_date')]
+    '''Event start date as YYYY-MM-DD, or 'unknown' if not stated.'''
+    end_date: Annotated[str, MdSkip(), MdFrontmatter(key='end_date')]
+    '''Event end date as YYYY-MM-DD. For single-day events, repeat
+    start_date. Use 'unknown' if not stated.'''
 
 
 class ProductInfo(CrypticModel):
-    category: Literal['product']
-    summary: str = PageSummary
-    name: str
+    category: Annotated[Literal['product'], MdSkip()]
+    summary: Annotated[str, MdSection()] = PageSummary
+    name: Annotated[
+        str,
+        MdSkip(),
+        MdFrontmatter(key='title'),
+        MdFrontmatter(key='aliases', transform=lambda v: [v]),
+    ]
     '''Concise product name, 10 words or less'''
-    price: str
-    '''format: $dollars.cents'''
+    price: Annotated[str, MdSkip(), MdFrontmatter(key='price')]
+    '''Price as listed: e.g., '$19.99', '€15', 'free', 'contact sales',
+    or 'unknown'. Preserve the currency symbol from the source.'''
 
 
 class DiscussionInfo(CrypticModel):
-    category: Literal['discussion']
-    summary: str = PageSummary
-    topic: str
+    category: Annotated[Literal['discussion'], MdSkip()]
+    summary: Annotated[str, MdSection()] = PageSummary
+    topic: Annotated[str, MdSection(), Field(serialization_alias='Topic')]
     '''Concise summary of the topic of the discussion in 20 words or less'''
-    viewpoints: list[str]
+    viewpoints: Annotated[
+        list[str],
+        MdSection(style='bullets'),
+        Field(serialization_alias='Viewpoints'),
+    ]
     '''Concise summary of up to 3 viewpoints in the discussion, 20 words or less each'''
-    solution: str
-    '''Concise summary of the proposed solution to the problem, 20 words or less'''
+    solution: Annotated[str, MdSection(), Field(serialization_alias='Solution')]
+    '''The proposed or accepted solution in 20 words or less. Use
+    'unresolved' if the thread did not converge on one.'''
 
 
 class MediaType(str, Enum):
     '''
     film: movies, cinema, tv shows
-    music: music and music videos
-    visual: illustration, photography, and so on
-    interactive: games, interactive demos, etc
+    music: songs, albums, music videos
+    visual: illustration, photography, painting, sculpture
+    interactive: games, interactive demos, playable simulations, generative art
     book: physical and digital books
-    written: poetry, short stories, etc
+    written: poetry, short stories, essays, fiction excerpts
     '''
 
     film = 'film'
@@ -139,25 +213,30 @@ class MediaType(str, Enum):
 
 
 class MediaInfo(CrypticModel):
-    category: Literal['media']
-    summary: str = PageSummary
-    artist: str
+    category: Annotated[Literal['media'], MdSkip()]
+    summary: Annotated[str, MdSection()] = PageSummary
+    artist: Annotated[str, MdSkip(), MdFrontmatter(key='artist')]
     '''Band, director, creator, or author'''
-    media_type: MediaType
+    media_type: Annotated[MediaType, MdSkip(), MdFrontmatter(key='media_type')]
 
 
 class SoftwareInfo(CrypticModel):
-    category: Literal['software']
-    summary: str = PageSummary
-    language: str
-    '''Primary language its written in, or Unknown'''
-    authors: list[str]
+    category: Annotated[Literal['software'], MdSkip()]
+    summary: Annotated[str, MdSection()] = PageSummary
+    language: Annotated[
+        str,
+        MdSkip(),
+        MdFrontmatter(key='prog_lang', transform=str.lower),
+    ]
+    '''Predominant implementation language (as advertised by the project,
+    or whichever has the most code). Use 'unknown' if not stated.'''
+    authors: Annotated[list[str], MdSkip(), MdFrontmatter(key='author')]
     '''Primary authors or maintainers, maximum 5'''
 
 
 class ReferenceInfo(CrypticModel):
-    category: Literal['reference']
-    summary: str = PageSummary
+    category: Annotated[Literal['reference'], MdSkip()]
+    summary: Annotated[str, MdSection()] = PageSummary
 
 
 NoteInfo = PaperInfo | ArticleInfo | EventInfo | ProductInfo | \
@@ -166,21 +245,29 @@ NoteInfo = PaperInfo | ArticleInfo | EventInfo | ProductInfo | \
 
 class BaseNoteSummary(CrypticModel):
     tags: list[str]
-    '''Relevant tags focusing on key topics, preferring single words over phrases. 
-    Focus on the big picture. If you must use a multiword tag, separate the words with "-",
-    like: word1-word2. 4 to 7 total. All lowercase.'''
+    '''Relevant topical tags focusing on subject matter, preferring single
+    words over phrases. 4 to 7 total, all lowercase. Multiword tags use
+    hyphens: word1-word2. Avoid tags that duplicate the category (don't
+    tag a `paper` note with "paper" or "research"); avoid platform and
+    publisher tags ("github", "youtube", "substack").'''
 
 
 class NoteMetadata(CrypticModel):
     title: str
-    '''A succinct title for the page, 10 words or less'''
+    '''Succinct, descriptive title for the note — capture the page's
+    actual subject, not the site's name. 10 words or less. Will be used
+    as the filename slug.'''
 
 
 class NoteSummary(BaseNoteSummary):
+    '''Structured summary of a single web page. Pick `category` first;
+    the `info` block must match that category (the model is responsible
+    for selecting the right variant).'''
     metadata: NoteMetadata
     category: PageCategory
     info: NoteInfo
-    '''Additional information on the page, depending on its category'''
+    '''Category-specific fields. The discriminator field `info.category`
+    must match the top-level `category`.'''
 
 
 class SoftwareSummary(BaseNoteSummary):

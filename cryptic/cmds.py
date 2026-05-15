@@ -134,10 +134,10 @@ async def service_cmd(args: Namespace):
         svc.input_dir = Path(args.input_dir).expanduser().resolve()
     if args.output_dir is not None:
         svc.output_dir = Path(args.output_dir).expanduser().resolve()
+    if args.originals_dir is not None:
+        svc.originals_dir = Path(args.originals_dir).expanduser().resolve()
     if args.max_concurrent is not None:
         svc.max_concurrent = args.max_concurrent
-    if args.file_mode is not None:
-        svc.file_mode = args.file_mode
 
     return await service_mod.run(
         console=console,
@@ -155,10 +155,9 @@ def _(parser: ArgParser):
                         help='Override service.input_dir from config.')
     parser.add_argument('--output-dir', type=Path, default=None,
                         help='Override service.output_dir from config.')
+    parser.add_argument('--originals-dir', type=Path, default=None,
+                        help='Override service.originals_dir from config.')
     parser.add_argument('--max-concurrent', type=int, default=None,
                         help='Override service.max_concurrent from config.')
-    parser.add_argument('--file-mode', type=str, default=None,
-                        choices=['move', 'copy'],
-                        help='Override service.file_mode from config.')
     parser.add_argument('--once', default=False, action='store_true',
                         help='Drain existing files and exit instead of watching.')

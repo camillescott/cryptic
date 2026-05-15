@@ -3,130 +3,101 @@
 # File   : markdown.py
 # License: MIT
 # Author : Camille Scott <camille.scott.w@gmail.com>
-# Date   : 23.10.2024
-# (c) Camille Scott, 2024
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Callable, Literal
+
+from pydantic import BaseModel
+from pydantic.fields import FieldInfo
 
 
-from functools import singledispatch
-import textwrap
-from typing import Any
-
-from .models import (NoteInfo,
-                     PaperInfo,
-                     ArticleInfo,
-                     EventInfo,
-                     ProductInfo,
-                     DiscussionInfo,
-                     MediaInfo,
-                     SoftwareInfo,
-                     ReferenceInfo)
+Style = Literal['paragraph', 'bullets', 'numbered']
 
 
-def md_escape(text: str) -> str:
-    special_characters = [
-        ('\\', '\\\\'),  
-        ('`', '\\`'),
-        ('*', '\\*'),
-        ('_', '\\_'),
-        ('{', '\\{'),
-        ('}', '\\}'),
-        ('[', '\\['),
-        (']', '\\]'),
-        ('(', '\\('),
-        (')', '\\)'),
-        ('>', '\\>'),
-        ('#', '\\#'),
-        ('+', '\\+'),
-        ('-', '\\-'),
-        ('.', '\\.'),
-        ('!', '\\!')
-    ]
+@dataclass(frozen=True)
+class MdSection:
+    """Render this field as a section in the note body.
 
-    for char, escape in special_characters:
-        text = text.replace(char, escape)
-
-    return text
+    Header text comes from the field's `serialization_alias`. If neither
+    `header` nor `serialization_alias` is set, the section is emitted
+    without a header.
+    """
+    depth: int = 2
+    style: Style = 'paragraph'
+    header: str | None = None
 
 
-def md_bullets(source: list[Any], symbol: str = '-'):
-    for item in source:
-        yield symbol, item
+@dataclass(frozen=True)
+class MdSkip:
+    """Explicit marker: this field is intentionally not in the body."""
+    pass
 
 
-def md_enumerate(source: list[Any]):
-    for i, item in enumerate(source):
-        yield f'{i}.', item
+@dataclass(frozen=True)
+class MdFrontmatter:
+    """Map this field into the note's YAML frontmatter under `key`.
+
+    A field can carry multiple MdFrontmatter annotations to write the
+    same source value to several frontmatter keys.
+    """
+    key: str
+    transform: Callable[[Any], Any] | None = None
 
 
-def md_bold(text: str):
-    return f'**{text}**'
+def render(model: BaseModel) -> str:
+    chunks: list[str] = []
+    for name, fi in type(model).model_fields.items():
+        meta = _md_meta(fi)
+        if meta is None or isinstance(meta, MdSkip):
+            continue
+        value = getattr(model, name)
+        if _is_empty(value):
+            continue
+        chunks.append(_render_section(value, meta, _header_for(meta, fi)))
+    return '\n\n'.join(chunks)
 
 
-def md_italic(text: str):
-    return f'_{text}_'
+def apply_frontmatter(model: BaseModel, target: dict[str, Any]) -> None:
+    dumped = model.model_dump()
+    for name, fi in type(model).model_fields.items():
+        value = dumped.get(name)
+        for m in fi.metadata:
+            if not isinstance(m, MdFrontmatter):
+                continue
+            target[m.key] = m.transform(value) if m.transform else value
 
 
-def md_list(items: list[Any], numbered: bool = False):
-    markers = md_enumerate if numbered else md_bullets
-
-    result = []
-    for marker, item in markers(items):
-        result.append(f'{marker} {item}')
-
-    return '\n'.join(result)
+def _md_meta(fi: FieldInfo) -> MdSection | MdSkip | None:
+    for m in fi.metadata:
+        if isinstance(m, (MdSection, MdSkip)):
+            return m
+    return None
 
 
-def md_header(item: str, depth: int = 2):
-    return f'{"#" * depth} {item}'
+def _header_for(meta: MdSection, fi: FieldInfo) -> str | None:
+    return meta.header or fi.serialization_alias
 
 
-def md_link(url: str, text: str | None = None):
-    if text is None:
-        text = url
-    return f'[{text}]({url})'
+def _is_empty(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    if isinstance(value, (list, tuple)) and not value:
+        return True
+    return False
 
 
-@singledispatch
-def noteinfo_to_md(info: NoteInfo) -> str:
-    elements : list[str] = [info.summary]
-    return '\n\n'.join(elements)
-
-
-@noteinfo_to_md.register
-def _(info: PaperInfo) -> str:
-    elements : list[str] = [info.summary]
-    elements.append(md_header('Abstract', depth=2))
-    elements.append(info.abstract)
-    elements.append(md_header('Foundational Work', depth=2))
-    elements.append(info.foundations)
-    elements.append(md_header('Takeaways', depth=2))
-    elements.append(md_list(info.takeaways))
-    return '\n\n'.join(elements)
-
-
-@noteinfo_to_md.register
-def _(info: ArticleInfo):
-    elements : list[str] = [info.summary]
-    elements.append(md_header('Foundational Work', depth=2))
-    elements.append(info.foundations)
-    elements.append(md_header('Takeaways', depth=2))
-    elements.append(md_list(info.takeaways))
-    return '\n\n'.join(elements)
-
-
-@noteinfo_to_md.register
-def _(info: EventInfo) -> str:
-    elements : list[str] = [info.summary]
-    return '\n\n'.join(elements)
-
-
-@noteinfo_to_md.register
-def _(info: DiscussionInfo) -> str:
-    elements : list[str] = [info.summary]
-    elements.append(md_header('Topic', depth=2))
-    elements.append(info.topic)
-    elements.append(md_header('Viewpoints', depth=2))
-    elements.append(md_list(info.viewpoints))
-    elements.append(md_header('Solution', depth=2))
-    elements.append(info.solution)
-    return '\n\n'.join(elements)
+def _render_section(value: Any, meta: MdSection, header: str | None) -> str:
+    parts: list[str] = []
+    if header:
+        parts.append('#' * meta.depth + ' ' + header)
+    if meta.style == 'paragraph':
+        parts.append(str(value))
+    elif meta.style == 'bullets':
+        parts.append('\n'.join(f'- {item}' for item in value))
+    elif meta.style == 'numbered':
+        parts.append('\n'.join(f'{i + 1}. {item}' for i, item in enumerate(value)))
+    return '\n\n'.join(parts)

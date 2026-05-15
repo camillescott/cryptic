@@ -6,7 +6,6 @@
 # Date   : 23.10.2024
 # (c) Camille Scott, 2024
 
-from functools import singledispatchmethod
 from pathlib import Path
 import re
 
@@ -14,20 +13,7 @@ import frontmatter as fm
 from rich.console import Console
 from rich.markdown import Markdown
 
-from .markdown import noteinfo_to_md
-
-from .models import (BaseNoteSummary,
-                     NoteSummary,
-                     PageCategory,
-                     NoteInfo,
-                     PaperInfo,
-                     ArticleInfo,
-                     EventInfo,
-                     ProductInfo,
-                     DiscussionInfo,
-                     MediaInfo,
-                     SoftwareInfo,
-                     ReferenceInfo)
+from .models import NoteSummary, PageCategory
 
 
 def normalize_tag(tag: str):
@@ -160,43 +146,7 @@ class WebNote(Note):
         self.metadata['title'] = summary.metadata.title
         self.add_tags(summary.tags)
 
-        self.content = noteinfo_to_md(summary.info)
-        self.process_info(summary.info)
+        self.content = summary.info.to_markdown()
+        summary.info.apply_frontmatter(self.metadata)
         self.cryptic_processed = True
-
-    @singledispatchmethod
-    def process_info(self, info: NoteInfo):
-        pass
-
-    @process_info.register
-    def _(self, info: PaperInfo):
-        self['aliases'][0] = info.original_title
-        self['author'] = info.authors
-        self['journal'] = info.journal
-        self['doi'] = info.doi
-
-    @process_info.register
-    def _(self, info: ArticleInfo):
-        pass
-
-    @process_info.register
-    def _(self, info: EventInfo):
-        self['start_date'] = info.start_date
-        self['end_date'] = info.end_date
-
-    @process_info.register
-    def _(self, info: ProductInfo):
-        self.title = info.name
-        self['aliases'][0] = info.name
-        self['price'] = info.price
-
-    @process_info.register
-    def _(self, info: MediaInfo):
-        self['media_type'] = info.media_type.value
-        self['artist'] = info.artist
-
-    @process_info.register
-    def _(self, info: SoftwareInfo):
-        self['prog_lang'] = info.language.lower()
-        self['author'] = info.authors
 

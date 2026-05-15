@@ -22,9 +22,6 @@ ReasoningLevel = Literal['low', 'medium', 'high', 'xhigh']
 REASONING_LEVELS: tuple[ReasoningLevel, ...] = ('low', 'medium', 'high', 'xhigh')
 DEFAULT_REASONING: ReasoningLevel = 'medium'
 
-FileMode = Literal['move', 'copy']
-FILE_MODES: tuple[FileMode, ...] = ('move', 'copy')
-
 
 def _xdg_default_config_path() -> Path:
     base = os.environ.get('XDG_CONFIG_HOME')
@@ -67,15 +64,16 @@ class PromptCfg(BaseModel):
 class ServiceCfg(BaseModel):
     input_dir: Path
     output_dir: Path
+    originals_dir: Path
     max_concurrent: int = 3
     max_tries: int = 3
-    file_mode: FileMode = 'move'
     pickup_delay_seconds: float = 3.0
 
     @model_validator(mode='after')
     def _expand(self) -> Self:
         self.input_dir = Path(self.input_dir).expanduser().resolve()
         self.output_dir = Path(self.output_dir).expanduser().resolve()
+        self.originals_dir = Path(self.originals_dir).expanduser().resolve()
         if self.max_concurrent < 1:
             raise ValueError('service.max_concurrent must be >= 1')
         if self.max_tries < 1:

@@ -61,16 +61,10 @@ async def _process_one(
             return
 
         if note.cryptic_processed:
-            try:
-                if svc.file_mode == 'move':
-                    dest = svc.output_dir / path.name
-                    shutil.move(str(path), str(dest))
-                    console.log(f'[yellow]already processed[/yellow] {path.name} -> {dest}')
-                else:
-                    console.log(f'[yellow]already processed[/yellow] {path.name} (skip)')
-            except Exception as e:
-                console.print(f'[red]already-processed handling failed for {path.name}: {e}[/red]')
-                console.print(traceback.format_exc())
+            console.log(
+                f'[yellow]cryptic_processed=true on {path.name}; '
+                f'leaving in input_dir for manual review[/yellow]'
+            )
             return
 
         prev_tries = note.cryptic_tries or 0
@@ -79,6 +73,14 @@ async def _process_one(
                 f'[yellow]skip[/yellow] {path.name} '
                 f'(cryptic_tries={prev_tries} >= max_tries={svc.max_tries})'
             )
+            return
+
+        archive_path = svc.originals_dir / path.name
+        try:
+            shutil.copy2(str(path), str(archive_path))
+        except Exception as e:
+            console.print(f'[red]archive to originals_dir failed for {path.name}: {e}[/red]')
+            console.print(traceback.format_exc())
             return
 
         note.cryptic_tries = prev_tries + 1
@@ -109,22 +111,15 @@ async def _process_one(
 
         try:
             note.process_summary(summary)
-
             kebab = normalize_tag(summary.metadata.title)
             dest_name = f'{kebab}.md' if kebab else path.name
             dest = svc.output_dir / dest_name
             note.save(dest)
-
-            if svc.file_mode == 'move':
-                path.unlink()
-            else:
-                original = WebNote(path)
-                original.cryptic_processed = True
-                original.save()
-
+            path.unlink()
             console.log(
                 f'[green]done[/green] {path.name} -> {dest_name} '
-                f'({completion.usage.total_tokens} tokens) {svc.file_mode}-> {dest}'
+                f'({completion.usage.total_tokens} tokens, '
+                f'original={archive_path.name})'
             )
         except Exception as e:
             console.print(f'[red]post-process write failed for {path.name}: {e}[/red]')
@@ -195,6 +190,7 @@ async def run(
         console.print(f'[red]input_dir does not exist: {svc.input_dir}[/red]')
         return 1
     svc.output_dir.mkdir(parents=True, exist_ok=True)
+    svc.originals_dir.mkdir(parents=True, exist_ok=True)
 
     queue: asyncio.Queue[Path] = asyncio.Queue()
     sem = asyncio.Semaphore(svc.max_concurrent)
@@ -204,8 +200,9 @@ async def run(
         queue.put_nowait(p)
     console.log(
         f'[bold]service[/bold] input={svc.input_dir} output={svc.output_dir} '
+        f'originals={svc.originals_dir} '
         f'max_concurrent={svc.max_concurrent} max_tries={svc.max_tries} '
-        f'file_mode={svc.file_mode} pickup_delay={svc.pickup_delay_seconds}s '
+        f'pickup_delay={svc.pickup_delay_seconds}s '
         f'model={model} reasoning={reasoning} seeded={queue.qsize()}'
     )
 
