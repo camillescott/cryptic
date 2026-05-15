@@ -8,6 +8,7 @@
 
 from argparse import Action
 from enum import Enum
+from pathlib import Path
 
 from ponderosa import CmdTree, ArgParser, arggroup
 
@@ -40,3 +41,15 @@ class EnumAction(Action):
 
 
 commands = CmdTree()
+
+
+@commands.root.args("Config", common=True)
+def common_args(parser: ArgParser):
+    parser.add_argument('--config', type=Path, default=None,
+                        help='Path to YAML config file.')
+    parser.add_argument('--model', type=str, default=None,
+                        help='Override the configured default model.')
+    parser.add_argument('--reasoning', type=str, default=None,
+                        choices=['low', 'medium', 'high', 'xhigh'],
+                        help='Override the configured reasoning effort.')
+

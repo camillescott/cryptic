@@ -8,28 +8,28 @@
 
 from typing import Type
 
-from openai import OpenAI
+from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletion
 
 from .models import BaseNoteSummary, NoteSummary
 
 
-OPENAI_MODELS = {
-    'gpt-4o',
-    'gpt-4o-mini'
-}
-
-
-def summarize_page(content: str,
-                   model: str = 'gpt-4o-mini',
-                   schema: Type[BaseNoteSummary] = NoteSummary):
-    client = OpenAI()
-    completion = client.beta.chat.completions.parse(
+async def summarize_page(
+    client: AsyncOpenAI,
+    content: str,
+    *,
+    model: str,
+    system_prompt: str,
+    reasoning: str,
+    schema: Type[BaseNoteSummary] = NoteSummary,
+) -> tuple[BaseNoteSummary | None, ChatCompletion]:
+    completion = await client.chat.completions.parse(
         model=model,
         messages=[
-            {"role": "system", 
-             "content": "You are an expert at structured data extraction. You will be given unstructured source from a webpage and should convert it to the given format."},
-            {"role": "user", "content": content}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content},
         ],
         response_format=schema,
+        reasoning_effort=reasoning,
     )
     return completion.choices[0].message.parsed, completion

@@ -34,6 +34,35 @@ def normalize_tag(tag: str):
     return re.sub(r'[^\w]+', '-', tag).strip('-').lower()
 
 
+_TRUTHY_STR = {'true', 'yes', '1', 'on'}
+_FALSY_STR = {'false', 'no', '0', 'off', ''}
+
+
+def _coerce_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in _TRUTHY_STR:
+            return True
+        if v in _FALSY_STR:
+            return False
+    raise ValueError(f'cannot coerce {value!r} to bool')
+
+
+def _coerce_int(value: object) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f'cannot coerce bool {value!r} to int')
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            pass
+    raise ValueError(f'cannot coerce {value!r} to int')
+
+
 class Note(fm.Post):
 
     def __init__(self,
@@ -44,7 +73,7 @@ class Note(fm.Post):
         if isinstance(path, str):
             path = Path(path)
         self.path = path
-        
+
         base = fm.load(str(path), encoding=encoding, handler=handler, **defaults)
         if 'tags' in base.metadata:
             base.metadata['tags'] = list(set(base.metadata['tags']))
@@ -53,8 +82,21 @@ class Note(fm.Post):
 
         super().__init__(base.content, base.handler, **base.metadata)
 
-    def save(self):
-        with self.path.open('w') as fp:
+        if self.metadata.get('cryptic_processed') is not None:
+            self.metadata['cryptic_processed'] = _coerce_bool(
+                self.metadata['cryptic_processed']
+            )
+        if self.metadata.get('cryptic_tries') is not None:
+            self.metadata['cryptic_tries'] = _coerce_int(
+                self.metadata['cryptic_tries']
+            )
+
+    def save(self, path: Path | str | None = None):
+        if path is None:
+            path = self.path
+        if isinstance(path, str):
+            path = Path(path)
+        with path.open('w') as fp:
             print(fm.dumps(self), file=fp)
 
     def normalize_tags(self):
@@ -83,6 +125,14 @@ class Note(fm.Post):
     def cryptic_processed(self, value: bool):
         self.metadata['cryptic_processed'] = value
 
+    @property
+    def cryptic_tries(self) -> int | None:
+        return self.metadata.get('cryptic_tries', None)
+
+    @cryptic_tries.setter
+    def cryptic_tries(self, value: int) -> None:
+        self.metadata['cryptic_tries'] = value
+
     def to_console(self, console: Console):
         console.print('---')
         console.print(fm.YAMLHandler().export(self.metadata))
@@ -104,9 +154,10 @@ class WebNote(Note):
         self.metadata['category'] = category.value
 
 
-    def process_summary(self, summary: BaseNoteSummary):
-        if isinstance(summary, NoteSummary):
-            self.category = summary.category
+    def process_summary(self, summary: NoteSummary):
+        self.category = summary.category
+        self.metadata['aliases'] = [summary.metadata.title]
+        self.metadata['title'] = summary.metadata.title
         self.add_tags(summary.tags)
 
         self.content = noteinfo_to_md(summary.info)
@@ -119,8 +170,7 @@ class WebNote(Note):
 
     @process_info.register
     def _(self, info: PaperInfo):
-        self.title = info.title
-        self['aliases'][0] = info.title
+        self['aliases'][0] = info.original_title
         self['author'] = info.authors
         self['journal'] = info.journal
         self['doi'] = info.doi

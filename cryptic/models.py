@@ -50,7 +50,7 @@ class PageCategory(str, Enum):
 
 PageSummary = Field(description=dedent(
 '''
-50 words or less focusing on the core functionality and content.
+50 words or less focusing on the core functionality and/or content.
 '''
 ))
 
@@ -72,7 +72,7 @@ with author names and Markdown links to those works if possible.
 class PaperInfo(CrypticModel):
     category: Literal['paper']
     summary: str = PageSummary
-    title: str
+    original_title: str
     authors: list[str]
     journal: str
     '''The name of the journal.'''
@@ -171,7 +171,13 @@ class BaseNoteSummary(CrypticModel):
     like: word1-word2. 4 to 7 total. All lowercase.'''
 
 
+class NoteMetadata(CrypticModel):
+    title: str
+    '''A succinct title for the page, 10 words or less'''
+
+
 class NoteSummary(BaseNoteSummary):
+    metadata: NoteMetadata
     category: PageCategory
     info: NoteInfo
     '''Additional information on the page, depending on its category'''

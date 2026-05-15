@@ -10,11 +10,14 @@ cryptic = "cryptic.__main__:main"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-openai = "^1.52.1"
+openai = "^2.36.0"
 rich = "^13.9.3"
 python-frontmatter = "^1.1.0"
-ponderosa = {extras = ["rich"], version = "^0.5.1"}
+ponderosa = {extras = ["rich"], version = "^0.6.0"}
 pillow = "^11.0.0"
+pyyaml = "^6.0"
+asyncinotify = "^4.0"
+python-dotenv = "^1.2.2"
 
 
 [tool.poetry.group.dev.dependencies]

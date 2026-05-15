@@ -97,7 +97,7 @@ def _(info: PaperInfo) -> str:
     elements : list[str] = [info.summary]
     elements.append(md_header('Abstract', depth=2))
     elements.append(info.abstract)
-    elements.append(md_header('Foudational Work', depth=2))
+    elements.append(md_header('Foundational Work', depth=2))
     elements.append(info.foundations)
     elements.append(md_header('Takeaways', depth=2))
     elements.append(md_list(info.takeaways))
@@ -107,7 +107,7 @@ def _(info: PaperInfo) -> str:
 @noteinfo_to_md.register
 def _(info: ArticleInfo):
     elements : list[str] = [info.summary]
-    elements.append(md_header('Foudational Work', depth=2))
+    elements.append(md_header('Foundational Work', depth=2))
     elements.append(info.foundations)
     elements.append(md_header('Takeaways', depth=2))
     elements.append(md_list(info.takeaways))
@@ -118,6 +118,7 @@ def _(info: ArticleInfo):
 def _(info: EventInfo) -> str:
     elements : list[str] = [info.summary]
     return '\n\n'.join(elements)
+
 
 @noteinfo_to_md.register
 def _(info: DiscussionInfo) -> str:

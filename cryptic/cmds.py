@@ -10,12 +10,50 @@ from argparse import Namespace
 from pathlib import Path
 import shutil
 
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
 from rich.console import Console
 
-from .args import ArgParser, arggroup, commands, EnumAction
+from .args import ArgParser, arggroup, commands, common_args, EnumAction
 from .chat import summarize_page
+from .config import AppConfig
 from .models import NoteSummary, PageCategory, summary_schema_from_category
 from .note import WebNote
+from . import service as service_mod
+
+
+def _resolve_model(args: Namespace, cfg: AppConfig, console: Console) -> str | None:
+    requested = args.model or cfg.openai.default_model
+    if requested not in cfg.openai.models:
+        console.print(
+            f'[red]Model {requested!r} is not in configured models: '
+            f'{cfg.openai.models}[/red]'
+        )
+        return None
+    return requested
+
+
+def _resolve_reasoning(args: Namespace, cfg: AppConfig) -> str:
+    return args.reasoning or cfg.openai.default_reasoning
+
+
+@common_args.postprocessor()
+def resolve_config(args: Namespace):
+    console = Console(stderr=True)
+    try:
+        cfg = AppConfig.load(args.config)
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f'[red]{e}[/red]')
+        raise
+
+    args.model = _resolve_model(args, cfg, console)
+    if args.model is None:
+        raise ValueError('No model specified')
+
+    args.reasoning = _resolve_reasoning(args, cfg)
+    args.cfg = cfg
+
+    load_dotenv()
 
 
 @arggroup('Category')
@@ -26,8 +64,10 @@ def category_args(parser: ArgParser):
 @category_args.apply()
 @commands.register('process', 'note',
                    help='Process a note with the LLM and rewrite it.')
-def process_note(args: Namespace):
+async def process_note(args: Namespace):
     console = Console(stderr=True)
+
+
     console.log(f'Load {args.note}...')
     note = WebNote(args.note)
 
@@ -41,11 +81,23 @@ def process_note(args: Namespace):
     else:
         schema = NoteSummary
 
-    with console.status(f'[bold blue]Wait for OpenAI response...') as status:
-        summary, completion = summarize_page(note.content, schema=schema)
-        if summary is None:
-            console.print(f'[red] Error processing note!')
-            return 1
+    client = AsyncOpenAI()
+    try:
+        with console.status(f'[bold blue]Wait for OpenAI response...'):
+            summary, completion = await summarize_page(
+                client,
+                note.content,
+                model=args.model,
+                system_prompt=args.cfg.prompt.text,
+                reasoning=args.reasoning,
+                schema=schema,
+            )
+    finally:
+        await client.close()
+
+    if summary is None:
+        console.print(f'[red] Error processing note!')
+        return 1
 
     console.log(f'Processed note using {completion.usage.total_tokens} tokens.')
     console.print(summary)
@@ -62,7 +114,7 @@ def process_note(args: Namespace):
     note.to_console(console)
 
     return 0
-    
+
 
 @process_note.args()
 def _(parser: ArgParser):
@@ -70,3 +122,43 @@ def _(parser: ArgParser):
     parser.add_argument('--force', '-f', default=False, action='store_true')
     parser.add_argument('--backup', '-b', default=False, action='store_true')
 
+
+@commands.register('service',
+                   help='Watch a directory for new notes and process them.')
+async def service_cmd(args: Namespace):
+    console = Console(stderr=True)
+
+    svc = args.cfg.require_service()
+
+    if args.input_dir is not None:
+        svc.input_dir = Path(args.input_dir).expanduser().resolve()
+    if args.output_dir is not None:
+        svc.output_dir = Path(args.output_dir).expanduser().resolve()
+    if args.max_concurrent is not None:
+        svc.max_concurrent = args.max_concurrent
+    if args.file_mode is not None:
+        svc.file_mode = args.file_mode
+
+    return await service_mod.run(
+        console=console,
+        cfg=args.cfg,
+        svc=svc,
+        model=args.model,
+        reasoning=args.reasoning,
+        once=args.once,
+    )
+
+
+@service_cmd.args()
+def _(parser: ArgParser):
+    parser.add_argument('--input-dir', type=Path, default=None,
+                        help='Override service.input_dir from config.')
+    parser.add_argument('--output-dir', type=Path, default=None,
+                        help='Override service.output_dir from config.')
+    parser.add_argument('--max-concurrent', type=int, default=None,
+                        help='Override service.max_concurrent from config.')
+    parser.add_argument('--file-mode', type=str, default=None,
+                        choices=['move', 'copy'],
+                        help='Override service.file_mode from config.')
+    parser.add_argument('--once', default=False, action='store_true',
+                        help='Drain existing files and exit instead of watching.')
