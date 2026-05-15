@@ -38,6 +38,7 @@ class PageCategory(str, Enum):
       article: news articles, opinion pieces, analysis pieces, blog posts
       paper: scientific publications and preprints (incl. arXiv, bioRxiv)
       event: pages describing a single event (festival, conference, talk)
+      space: a physical place — bar, restaurant, cafe, venue, gallery, etc.
       webapp: interactive applications, calculators, demos
       discussion: forum threads, issues, Q&A pages, comment threads
       software: code repos (github/gitlab), package pages, software docs
@@ -57,11 +58,14 @@ class PageCategory(str, Enum):
       is `article`.
     - `discussion` requires actual back-and-forth (multiple participants
       or replies). A single-author Q&A explainer is `reference`.
+    - `space` is the venue itself (where you go). A page advertising
+      one specific dated performance at a venue is `event`, not `space`.
     '''
 
     article = 'article'
     paper = 'paper'
     event = 'event'
+    space = 'space'
     webapp = 'webapp'
     discussion = 'discussion'
     software = 'software'
@@ -239,8 +243,25 @@ class ReferenceInfo(CrypticModel):
     summary: Annotated[str, MdSection()] = PageSummary
 
 
+class SpaceInfo(CrypticModel):
+    category: Annotated[Literal['space'], MdSkip()]
+    summary: Annotated[str, MdSection()] = PageSummary
+    name: Annotated[
+        str,
+        MdSkip(),
+        MdFrontmatter(key='title'),
+        MdFrontmatter(key='aliases', transform=lambda v: [v]),
+    ]
+    '''Name of the place, 10 words or less.'''
+    city: Annotated[str, MdSkip(), MdFrontmatter(key='city')]
+    '''City the place is located in, or 'unknown' if not stated.'''
+    address: Annotated[str, MdSkip(), MdFrontmatter(key='address')]
+    '''Full street address as a single line, or 'unknown' if not stated.'''
+
+
 NoteInfo = PaperInfo | ArticleInfo | EventInfo | ProductInfo | \
-           DiscussionInfo | MediaInfo | SoftwareInfo | ReferenceInfo
+           DiscussionInfo | MediaInfo | SoftwareInfo | ReferenceInfo | \
+           SpaceInfo
 
 
 class BaseNoteSummary(CrypticModel):
