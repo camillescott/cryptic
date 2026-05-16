@@ -82,8 +82,9 @@ async def process_note(args: Namespace):
         schema = NoteSummary
 
     client = AsyncOpenAI()
+    console.log(f'endpoint={client.base_url} model={args.model} reasoning={args.reasoning}')
     try:
-        with console.status(f'[bold blue]Wait for OpenAI response...'):
+        with console.status(f'[bold blue]Wait for LLM response...'):
             summary, completion = await summarize_page(
                 client,
                 note.content,

@@ -9,7 +9,7 @@
 > -- _Words of Radiance_
 
 
-Cryptic runs a persistent service that watches directories for incoming markdown files with some basic frontmatter and a body containing the raw HTML content of a website. The content is shipped off to an LLM provider (OpenAI by default), categorized, and summarized, with different summarizations and metadata extraction depending on the category. It uses [structured output](https://developers.openai.com/api/docs/guides/structured-outputs) for reliability, and the entire prompt (other than the system prompt) is defined in the pydantic models. The results are then written out to finalized Markdown in configured output directories.
+Cryptic runs a persistent service that watches directories for incoming markdown files with some basic frontmatter and a body containing the raw HTML content of a website. The content is shipped off to an LLM provider (any OpenAI compatible endpoint), categorized, and summarized, with different summarizations and metadata extraction depending on the category. It uses [structured output](https://developers.openai.com/api/docs/guides/structured-outputs) for reliability, and the entire prompt (other than the system prompt) is defined in the pydantic models. The results are then written out to finalized Markdown in configured output directories.
 
 It's designed to pair with [Obsidian Headless Sync](https://obsidian.md/help/sync/headless) and [Obsidian Web Clipper](https://obsidian.md/help/web-clipper). Web Clipper can do LLM processing out of the box, but the output formatting is somewhat limiting; an independent service allows much more flexibility in prompt design and output constraints.
 
@@ -29,7 +29,7 @@ From source, clone and run:
 poetry install
 ```
 
-Set `OPENAI_API_KEY` in the environment or in a `.env` file in the project root.
+Set `OPENAI_API_KEY`, and optionally `OPENAI_BASE_URL`, in the environment or in a `.env` file in the project root.
 
 ## Configuration
 
@@ -86,7 +86,10 @@ Common flags available on both commands:
 Pre-built images are published to Docker Hub at `camillescott/cryptic`. The included `compose.yaml` is the simplest way to run the service:
 
 ```sh
+# Provider API key
 export OPENAI_API_KEY=sk-...
+# To use a different provider endpoint
+export OPENAI_BASE_URL=my.openwebui.local/api
 docker compose up -d
 ```
 

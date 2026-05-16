@@ -209,14 +209,14 @@ async def run(
     for vault in svc.vaults.values():
         for p in sorted(vault.input_dir.glob('*.md')):
             queue.put_nowait((p, vault))
+    client = AsyncOpenAI()
     console.log(
         f'[bold]service[/bold] vaults={list(svc.vaults)} '
         f'max_concurrent={svc.max_concurrent} max_tries={svc.max_tries} '
         f'pickup_delay={svc.pickup_delay_seconds}s '
-        f'model={model} reasoning={reasoning} seeded={queue.qsize()}'
+        f'endpoint={client.base_url} model={model} reasoning={reasoning} '
+        f'seeded={queue.qsize()}'
     )
-
-    client = AsyncOpenAI()
     workers: list[asyncio.Task] = []
     for i in range(svc.max_concurrent):
         t = asyncio.create_task(
