@@ -165,6 +165,10 @@ class EventInfo(CrypticModel):
     end_date: Annotated[str, MdSkip(), MdFrontmatter(key='end_date')]
     '''Event end date as YYYY-MM-DD. For single-day events, repeat
     start_date. Use 'unknown' if not stated.'''
+    start_time: Annotated[str, MdSkip(), MdFrontmatter(key='start_time')]
+    '''Event start time as HH:MM, or 'unknown' if not stated.'''
+    end_time: Annotated[str, MdSkip(), MdFrontmatter(key='end_time')]
+    '''Event end time as HH:MM, or 'unknown' if not stated.'''
 
 
 class ProductInfo(CrypticModel):
