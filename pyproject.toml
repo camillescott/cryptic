@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cryptic"
-version = "1.0.0"
+version = "1.0.1"
 description = ""
 authors = ["Camille Scott <camille.scott.w@gmail.com>"]
 readme = "README.md"
@@ -31,6 +31,9 @@ tox = "^4.23.2"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.requires-plugins]
+poetry-bumpversion = ">=0.3.3"
 
 [tool.poetry_bumpversion.file."cryptic/__init__.py"]
 search = "__version__ = '{current_version}'"
