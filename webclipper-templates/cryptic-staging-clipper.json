@@ -1,0 +1,46 @@
+{
+	"schemaVersion": "0.1.0",
+	"name": "Cryptic Staging",
+	"behavior": "create",
+	"noteContentFormat": "{{contentHtml}}",
+	"properties": [
+		{
+			"name": "cryptic_processed",
+			"value": "false",
+			"type": "checkbox"
+		},
+		{
+			"name": "cryptic_tries",
+			"value": "0",
+			"type": "text"
+		},
+		{
+			"name": "source_url",
+			"value": "{{url}}",
+			"type": "text"
+		},
+		{
+			"name": "date_clipped",
+			"value": "{{date|date:\\\"YYYY-MM-DD\\\"}}",
+			"type": "text"
+		},
+		{
+			"name": "source_site",
+			"value": "{{site}}",
+			"type": "text"
+		},
+		{
+			"name": "date_published",
+			"value": "{{date|date:\\\"YYYY-MM-DD\\\"}}",
+			"type": "text"
+		},
+		{
+			"name": "source_title",
+			"value": "{{title}}",
+			"type": "text"
+		}
+	],
+	"triggers": [],
+	"noteNameFormat": "{{title}}",
+	"path": "cryptic-staging"
+}
