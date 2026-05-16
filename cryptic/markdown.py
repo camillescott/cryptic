@@ -23,10 +23,16 @@ class MdSection:
     Header text comes from the field's `serialization_alias`. If neither
     `header` nor `serialization_alias` is set, the section is emitted
     without a header.
+
+    When `skip_empty` is True (the default), a string value of 'unknown'
+    or 'none' (case-insensitive) also suppresses the entire section,
+    header included. Truly empty values (None, empty string, empty list)
+    are always suppressed regardless of `skip_empty`.
     """
     depth: int = 2
     style: Style = 'paragraph'
     header: str | None = None
+    skip_empty: bool = True
 
 
 @dataclass(frozen=True)
@@ -53,7 +59,7 @@ def render(model: BaseModel) -> str:
         if meta is None or isinstance(meta, MdSkip):
             continue
         value = getattr(model, name)
-        if _is_empty(value):
+        if _should_skip(value, meta):
             continue
         chunks.append(_render_section(value, meta, _header_for(meta, fi)))
     return '\n\n'.join(chunks)
@@ -80,13 +86,19 @@ def _header_for(meta: MdSection, fi: FieldInfo) -> str | None:
     return meta.header or fi.serialization_alias
 
 
-def _is_empty(value: Any) -> bool:
+_EMPTY_SENTINELS = frozenset({'unknown', 'none'})
+
+
+def _should_skip(value: Any, meta: MdSection) -> bool:
     if value is None:
         return True
     if isinstance(value, str) and not value.strip():
         return True
     if isinstance(value, (list, tuple)) and not value:
         return True
+    if meta.skip_empty and isinstance(value, str):
+        if value.strip().lower() in _EMPTY_SENTINELS:
+            return True
     return False
 
 
