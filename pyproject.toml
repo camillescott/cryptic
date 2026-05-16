@@ -39,7 +39,7 @@ cryptic = "cryptic.__main__:main"
 
 [tool.poetry]
 packages = [{ include = "cryptic" }]
-include = ["README.md", "cryptic/prompts/categorize.txt"]
+include = ["README.md", "LICENSE.md", "cryptic/prompts/categorize.txt"]
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.28.0"
