@@ -124,18 +124,11 @@ def _(parser: ArgParser):
 
 
 @commands.register('service',
-                   help='Watch a directory for new notes and process them.')
+                   help='Watch configured vault directories and process new notes.')
 async def service_cmd(args: Namespace):
     console = Console(stderr=True)
 
     svc = args.cfg.require_service()
-
-    if args.input_dir is not None:
-        svc.input_dir = Path(args.input_dir).expanduser().resolve()
-    if args.output_dir is not None:
-        svc.output_dir = Path(args.output_dir).expanduser().resolve()
-    if args.originals_dir is not None:
-        svc.originals_dir = Path(args.originals_dir).expanduser().resolve()
     if args.max_concurrent is not None:
         svc.max_concurrent = args.max_concurrent
 
@@ -151,12 +144,6 @@ async def service_cmd(args: Namespace):
 
 @service_cmd.args()
 def _(parser: ArgParser):
-    parser.add_argument('--input-dir', type=Path, default=None,
-                        help='Override service.input_dir from config.')
-    parser.add_argument('--output-dir', type=Path, default=None,
-                        help='Override service.output_dir from config.')
-    parser.add_argument('--originals-dir', type=Path, default=None,
-                        help='Override service.originals_dir from config.')
     parser.add_argument('--max-concurrent', type=int, default=None,
                         help='Override service.max_concurrent from config.')
     parser.add_argument('--once', default=False, action='store_true',

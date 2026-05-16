@@ -61,19 +61,39 @@ class PromptCfg(BaseModel):
         return self
 
 
-class ServiceCfg(BaseModel):
+class VaultCfg(BaseModel):
     input_dir: Path
     output_dir: Path
     originals_dir: Path
-    max_concurrent: int = 3
-    max_tries: int = 3
-    pickup_delay_seconds: float = 3.0
+    name: str | None = None
 
     @model_validator(mode='after')
     def _expand(self) -> Self:
         self.input_dir = Path(self.input_dir).expanduser().resolve()
         self.output_dir = Path(self.output_dir).expanduser().resolve()
         self.originals_dir = Path(self.originals_dir).expanduser().resolve()
+        return self
+
+
+class ServiceCfg(BaseModel):
+    vaults: dict[str, VaultCfg]
+    max_concurrent: int = 3
+    max_tries: int = 3
+    pickup_delay_seconds: float = 3.0
+
+    @model_validator(mode='after')
+    def _check(self) -> Self:
+        if not self.vaults:
+            raise ValueError('service.vaults must define at least one vault')
+        seen: dict[Path, str] = {}
+        for name, vault in self.vaults.items():
+            vault.name = name
+            if vault.input_dir in seen:
+                raise ValueError(
+                    f'vaults {seen[vault.input_dir]!r} and {name!r} share '
+                    f'input_dir {vault.input_dir}; input_dirs must be distinct'
+                )
+            seen[vault.input_dir] = name
         if self.max_concurrent < 1:
             raise ValueError('service.max_concurrent must be >= 1')
         if self.max_tries < 1:

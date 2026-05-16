@@ -17,52 +17,57 @@ from openai import AsyncOpenAI
 from rich.console import Console
 
 from .chat import summarize_page
-from .config import AppConfig, ServiceCfg
+from .config import AppConfig, ServiceCfg, VaultCfg
 from .note import WebNote, normalize_tag
+
+
+QueueItem = tuple[Path, VaultCfg]
 
 
 async def _process_one(
     client: AsyncOpenAI,
     cfg: AppConfig,
     svc: ServiceCfg,
+    vault: VaultCfg,
     model: str,
     reasoning: str,
     path: Path,
     in_flight: set[str],
     console: Console,
 ) -> None:
+    tag = f'\\[{vault.name}] {path.name}'
     pkey = str(path)
     if pkey in in_flight:
-        console.log(f'[dim]already in flight {path.name}; skipping duplicate event[/dim]')
+        console.log(f'[dim]already in flight {tag}; skipping duplicate event[/dim]')
         return
     if not path.exists():
-        console.log(f'[dim]vanished before pickup {path.name}; skipping[/dim]')
+        console.log(f'[dim]vanished before pickup {tag}; skipping[/dim]')
         return
     in_flight.add(pkey)
     if svc.pickup_delay_seconds > 0:
         console.log(
-            f'[dim]pickup {path.name} '
+            f'[dim]pickup {tag} '
             f'(settling for {svc.pickup_delay_seconds}s)[/dim]'
         )
     else:
-        console.log(f'[dim]pickup {path.name}[/dim]')
+        console.log(f'[dim]pickup {tag}[/dim]')
 
     try:
         if svc.pickup_delay_seconds > 0:
             await asyncio.sleep(svc.pickup_delay_seconds)
             if not path.exists():
-                console.log(f'[dim]vanished during settle {path.name}; skipping[/dim]')
+                console.log(f'[dim]vanished during settle {tag}; skipping[/dim]')
                 return
 
         try:
             note = WebNote(path)
         except Exception as e:
-            console.print(f'[red]load failed {path.name}: {e}[/red]')
+            console.print(f'[red]load failed {tag}: {e}[/red]')
             return
 
         if note.cryptic_processed:
             console.log(
-                f'[yellow]cryptic_processed=true on {path.name}; '
+                f'[yellow]cryptic_processed=true on {tag}; '
                 f'leaving in input_dir for manual review[/yellow]'
             )
             return
@@ -70,16 +75,16 @@ async def _process_one(
         prev_tries = note.cryptic_tries or 0
         if prev_tries >= svc.max_tries:
             console.log(
-                f'[yellow]skip[/yellow] {path.name} '
+                f'[yellow]skip[/yellow] {tag} '
                 f'(cryptic_tries={prev_tries} >= max_tries={svc.max_tries})'
             )
             return
 
-        archive_path = svc.originals_dir / path.name
+        archive_path = vault.originals_dir / path.name
         try:
             shutil.copy2(str(path), str(archive_path))
         except Exception as e:
-            console.print(f'[red]archive to originals_dir failed for {path.name}: {e}[/red]')
+            console.print(f'[red]archive to originals_dir failed for {tag}: {e}[/red]')
             console.print(traceback.format_exc())
             return
 
@@ -87,11 +92,11 @@ async def _process_one(
         try:
             note.save()
         except Exception as e:
-            console.print(f'[red]could not record cryptic_tries on {path.name}: {e}[/red]')
+            console.print(f'[red]could not record cryptic_tries on {tag}: {e}[/red]')
             return
 
         console.log(
-            f'[blue]processing[/blue] {path.name} '
+            f'[blue]processing[/blue] {tag} '
             f'(try {note.cryptic_tries}/{svc.max_tries})'
         )
         try:
@@ -105,7 +110,7 @@ async def _process_one(
             if summary is None:
                 raise RuntimeError('OpenAI returned no parsed summary')
         except Exception as e:
-            console.print(f'[red]failed {path.name}: {e}[/red]')
+            console.print(f'[red]failed {tag}: {e}[/red]')
             console.print(traceback.format_exc())
             return
 
@@ -113,19 +118,19 @@ async def _process_one(
             note.process_summary(summary)
             kebab = normalize_tag(summary.metadata.title)
             dest_name = f'{kebab}.md' if kebab else path.name
-            dest = svc.output_dir / dest_name
+            dest = vault.output_dir / dest_name
             note.save(dest)
             path.unlink()
             console.log(
-                f'[green]done[/green] {path.name} -> {dest_name} '
+                f'[green]done[/green] {tag} -> {dest_name} '
                 f'({completion.usage.total_tokens} tokens, '
                 f'original={archive_path.name})'
             )
         except Exception as e:
-            console.print(f'[red]post-process write failed for {path.name}: {e}[/red]')
+            console.print(f'[red]post-process write failed for {tag}: {e}[/red]')
             console.print(traceback.format_exc())
     except Exception as e:
-        console.print(f'[red]unexpected error on {path.name}: {e}[/red]')
+        console.print(f'[red]unexpected error on {tag}: {e}[/red]')
         console.print(traceback.format_exc())
     finally:
         in_flight.discard(pkey)
@@ -133,7 +138,7 @@ async def _process_one(
 
 async def _worker(
     name: str,
-    queue: asyncio.Queue[Path],
+    queue: asyncio.Queue[QueueItem],
     sem: asyncio.Semaphore,
     client: AsyncOpenAI,
     cfg: AppConfig,
@@ -144,11 +149,11 @@ async def _worker(
     console: Console,
 ) -> None:
     while True:
-        path = await queue.get()
+        path, vault = await queue.get()
         try:
             async with sem:
                 await _process_one(
-                    client, cfg, svc, model, reasoning, path, in_flight, console
+                    client, cfg, svc, vault, model, reasoning, path, in_flight, console
                 )
         except asyncio.CancelledError:
             queue.task_done()
@@ -163,18 +168,20 @@ async def _worker(
 
 async def _watcher(
     inotify: Inotify,
-    queue: asyncio.Queue[Path],
-    input_dir: Path,
-    console: Console,
+    vault_by_dir: dict[Path, VaultCfg],
+    queue: asyncio.Queue[QueueItem],
 ) -> None:
     async for event in inotify:
-        name = event.name
-        if name is None:
+        watch = event.watch
+        if watch is None or event.name is None:
             continue
-        path = input_dir / name
+        vault = vault_by_dir.get(watch.path)
+        if vault is None:
+            continue
+        path = vault.input_dir / event.name
         if path.suffix != '.md':
             continue
-        await queue.put(path)
+        await queue.put((path, vault))
 
 
 async def run(
@@ -186,21 +193,24 @@ async def run(
     reasoning: str,
     once: bool,
 ) -> int:
-    if not svc.input_dir.is_dir():
-        console.print(f'[red]input_dir does not exist: {svc.input_dir}[/red]')
-        return 1
-    svc.output_dir.mkdir(parents=True, exist_ok=True)
-    svc.originals_dir.mkdir(parents=True, exist_ok=True)
+    for name, vault in svc.vaults.items():
+        if not vault.input_dir.is_dir():
+            console.print(
+                f'[red]vault {name!r}: input_dir does not exist: {vault.input_dir}[/red]'
+            )
+            return 1
+        vault.output_dir.mkdir(parents=True, exist_ok=True)
+        vault.originals_dir.mkdir(parents=True, exist_ok=True)
 
-    queue: asyncio.Queue[Path] = asyncio.Queue()
+    queue: asyncio.Queue[QueueItem] = asyncio.Queue()
     sem = asyncio.Semaphore(svc.max_concurrent)
     in_flight: set[str] = set()
 
-    for p in sorted(svc.input_dir.glob('*.md')):
-        queue.put_nowait(p)
+    for vault in svc.vaults.values():
+        for p in sorted(vault.input_dir.glob('*.md')):
+            queue.put_nowait((p, vault))
     console.log(
-        f'[bold]service[/bold] input={svc.input_dir} output={svc.output_dir} '
-        f'originals={svc.originals_dir} '
+        f'[bold]service[/bold] vaults={list(svc.vaults)} '
         f'max_concurrent={svc.max_concurrent} max_tries={svc.max_tries} '
         f'pickup_delay={svc.pickup_delay_seconds}s '
         f'model={model} reasoning={reasoning} seeded={queue.qsize()}'
@@ -224,7 +234,9 @@ async def run(
             return 0
 
         with Inotify() as inotify:
-            inotify.add_watch(svc.input_dir, Mask.CLOSE_WRITE | Mask.MOVED_TO)
+            vault_by_dir = {v.input_dir: v for v in svc.vaults.values()}
+            for vault in svc.vaults.values():
+                inotify.add_watch(vault.input_dir, Mask.CLOSE_WRITE | Mask.MOVED_TO)
 
             cancel_event = asyncio.Event()
             loop = asyncio.get_running_loop()
@@ -232,7 +244,7 @@ async def run(
                 loop.add_signal_handler(sig, cancel_event.set)
 
             watcher_task = asyncio.create_task(
-                _watcher(inotify, queue, svc.input_dir, console),
+                _watcher(inotify, vault_by_dir, queue),
                 name='cryptic-watcher',
             )
 
