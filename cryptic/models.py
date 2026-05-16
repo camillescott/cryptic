@@ -160,15 +160,14 @@ class ArticleInfo(CrypticModel):
 class EventInfo(CrypticModel):
     category: Annotated[Literal['event'], MdSkip()]
     summary: Annotated[str, MdSection()] = PageSummary
-    start_date: Annotated[str, MdSkip(), MdFrontmatter(key='start_date')]
-    '''Event start date as YYYY-MM-DD, or 'unknown' if not stated.'''
-    end_date: Annotated[str, MdSkip(), MdFrontmatter(key='end_date')]
-    '''Event end date as YYYY-MM-DD. For single-day events, repeat
-    start_date. Use 'unknown' if not stated.'''
-    start_time: Annotated[str, MdSkip(), MdFrontmatter(key='start_time')]
-    '''Event start time as HH:MM, or 'unknown' if not stated.'''
-    end_time: Annotated[str, MdSkip(), MdFrontmatter(key='end_time')]
-    '''Event end time as HH:MM, or 'unknown' if not stated.'''
+    start_datetime: Annotated[str, MdSkip(), MdFrontmatter(key='start_datetime')]
+    '''Event start date and time as YYYY-MM-DDTHH:MM. Use the local timezone of the event.
+    If the time is not stated, format as YYYY-MM-DD. 'unknown' if unavailable.'''
+    end_datetime: Annotated[str, MdSkip(), MdFrontmatter(key='end_datetime')]
+    '''Event end date and time as YYYY-MM-DDTHH:MM. Use the local timezone of the event.
+    If the time is not stated, format as YYYY-MM-DD. 'unknown' if unavailable.'''
+    location: Annotated[str, MdSkip(), MdFrontmatter(key='location')]
+    '''Event location as a single line, or 'unknown' if unavailable.'''
 
 
 class ProductInfo(CrypticModel):
