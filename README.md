@@ -1,10 +1,14 @@
 # cryptic
 
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/camillescott/cryptic/docker-publish.yml)
-![Docker Image Version](https://img.shields.io/docker/v/camillescott/cryptic?logo=docker)
-![PyPI - Version](https://img.shields.io/pypi/v/cryptic-md)
+[![Docker Image Version](https://img.shields.io/docker/v/camillescott/cryptic?logo=docker)](https://hub.docker.com/r/camillescott/cryptic)
+[![PyPI - Version](https://img.shields.io/pypi/v/cryptic-md)](https://pypi.org/project/cryptic-md/)
+[![License](https://img.shields.io/badge/License-MIT-blue)](#license)
 
 LLM tools for summarizing web content into structured Obsidian notes.
+
+
+
 
 ## Features
 
