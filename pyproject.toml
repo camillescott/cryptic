@@ -1,9 +1,13 @@
 [tool.poetry]
-name = "cryptic"
+name = "cryptic-md"
 version = "1.0.1"
 description = ""
 authors = ["Camille Scott <camille.scott.w@gmail.com>"]
 readme = "README.md"
+include = ["README.md", "cryptic/prompts/categorize.txt"]
+packages = [
+  {include = "cryptic"}
+]
 
 [tool.poetry.scripts]
 cryptic = "cryptic.__main__:main" 
@@ -19,10 +23,8 @@ pyyaml = "^6.0"
 asyncinotify = "^4.0"
 python-dotenv = "^1.2.2"
 
-
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.28.0"
-
 
 [tool.poetry.group.tests.dependencies]
 pytest = "^8.3.3"
