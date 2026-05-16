@@ -2,6 +2,7 @@
 
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/camillescott/cryptic/docker-publish.yml)
 ![Docker Image Version](https://img.shields.io/docker/v/camillescott/cryptic?logo=docker)
+![PyPI - Version](https://img.shields.io/pypi/v/cryptic-md)
 
 LLM tools for summarizing web content into structured Obsidian notes.
 
