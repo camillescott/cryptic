@@ -1,0 +1,34 @@
+# Example compose file for the cryptic service.
+#
+# Replace the volume host paths with your real locations. The config.yaml
+# loaded from /config/config.yaml must use paths rooted at /vaults inside
+# the container, e.g.:
+#
+#   service:
+#     vaults:
+#       personal:
+#         input_dir:     /vaults/personal/cryptic-staging
+#         output_dir:    /vaults/personal/cryptic-processed
+#         originals_dir: /vaults/personal/cryptic-originals
+#
+# OPENAI_API_KEY can come from a `.env` file next to this compose file
+# or from the host environment.
+#
+# inotify and bind mounts work natively on Linux hosts. On Docker Desktop
+# for macOS or Windows, host filesystem events don't propagate into the
+# container — drop files from inside the container if you need to watch
+# from a non-Linux host.
+
+services:
+  cryptic:
+    image: camillescott/cryptic:latest
+    container_name: cryptic
+    restart: unless-stopped
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    volumes:
+      - ./vaults:/vaults
+      - ./config:/config
+    # Uncomment and set to your host UID:GID so files written to the
+    # mounted volumes are owned by your user rather than root.
+    # user: "1000:1000"
