@@ -1,27 +1,45 @@
-[tool.poetry]
+[project]
 name = "cryptic-md"
 version = "1.0.1"
-description = ""
-authors = ["Camille Scott <camille.scott.w@gmail.com>"]
+description = "LLM tools for summarizing web content into structured Obsidian notes."
 readme = "README.md"
-include = ["README.md", "cryptic/prompts/categorize.txt"]
-packages = [
-  {include = "cryptic"}
+requires-python = ">=3.12,<4"
+license = "MIT"
+authors = [
+    { name = "Camille Scott", email = "camille.scott.w@gmail.com" },
+]
+keywords = ["obsidian", "openai", "llm", "summarization", "notes", "markdown"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "openai>=2.36.0,<3.0.0",
+    "rich>=13.9.3,<14.0.0",
+    "python-frontmatter>=1.1.0,<2.0.0",
+    "ponderosa[rich]>=0.6.0,<0.7.0",
+    "pyyaml>=6.0,<7.0",
+    "asyncinotify>=4.0,<5.0",
+    "python-dotenv>=1.2.2,<2.0.0",
 ]
 
-[tool.poetry.scripts]
-cryptic = "cryptic.__main__:main" 
+[project.urls]
+Homepage = "https://github.com/camillescott/cryptic"
+Repository = "https://github.com/camillescott/cryptic"
+Issues = "https://github.com/camillescott/cryptic/issues"
 
-[tool.poetry.dependencies]
-python = "^3.12"
-openai = "^2.36.0"
-rich = "^13.9.3"
-python-frontmatter = "^1.1.0"
-ponderosa = {extras = ["rich"], version = "^0.6.0"}
-pillow = "^11.0.0"
-pyyaml = "^6.0"
-asyncinotify = "^4.0"
-python-dotenv = "^1.2.2"
+[project.scripts]
+cryptic = "cryptic.__main__:main"
+
+[tool.poetry]
+packages = [{ include = "cryptic" }]
+include = ["README.md", "cryptic/prompts/categorize.txt"]
 
 [tool.poetry.group.dev.dependencies]
 ipython = "^8.28.0"
@@ -31,7 +49,7 @@ pytest = "^8.3.3"
 tox = "^4.23.2"
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.requires-plugins]
