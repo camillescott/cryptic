@@ -1,6 +1,6 @@
 [project]
 name = "cryptic-md"
-version = "1.1.2"
+version = "1.2.0"
 description = "LLM tools for summarizing web content into structured Obsidian notes."
 readme = "README.md"
 requires-python = ">=3.12,<4"
