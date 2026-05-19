@@ -80,8 +80,10 @@ async def _process_one(
             )
             return
 
-        archive_path = vault.originals_dir / path.name
         try:
+            archive_dir = vault.resolve_originals(dict(note.metadata))
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            archive_path = archive_dir / path.name
             shutil.copy2(str(path), str(archive_path))
         except Exception as e:
             console.print(f'[red]archive to originals_dir failed for {tag}: {e}[/red]')
@@ -116,15 +118,17 @@ async def _process_one(
 
         try:
             note.process_summary(summary)
+            output_dir = vault.resolve_output(dict(note.metadata))
+            output_dir.mkdir(parents=True, exist_ok=True)
             kebab = normalize_tag(summary.metadata.title)
             dest_name = f'{kebab}.md' if kebab else path.name
-            dest = vault.output_dir / dest_name
+            dest = output_dir / dest_name
             note.save(dest)
             path.unlink()
             console.log(
-                f'[green]done[/green] {tag} -> {dest_name} '
+                f'[green]done[/green] {tag} -> {dest} '
                 f'({completion.usage.total_tokens} tokens, '
-                f'original={archive_path.name})'
+                f'original={archive_path})'
             )
         except Exception as e:
             console.print(f'[red]post-process write failed for {tag}: {e}[/red]')
@@ -199,8 +203,7 @@ async def run(
                 f'[red]vault {name!r}: input_dir does not exist: {vault.input_dir}[/red]'
             )
             return 1
-        vault.output_dir.mkdir(parents=True, exist_ok=True)
-        vault.originals_dir.mkdir(parents=True, exist_ok=True)
+        vault.prefix_dir.mkdir(parents=True, exist_ok=True)
 
     queue: asyncio.Queue[QueueItem] = asyncio.Queue()
     sem = asyncio.Semaphore(svc.max_concurrent)

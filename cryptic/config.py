@@ -9,7 +9,7 @@ from __future__ import annotations
 from importlib.resources import files as _pkg_files
 import os
 from pathlib import Path
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -63,16 +63,45 @@ class PromptCfg(BaseModel):
 
 class VaultCfg(BaseModel):
     input_dir: Path
-    output_dir: Path
-    originals_dir: Path
+    prefix_dir: Path
+    output_dir: str
+    '''Python format string for the directory the processed note is written
+    to. Keys reference frontmatter values on the *processed* note (e.g.
+    `{category}`, `{author[0]}`). The resolved path must be a child of
+    `prefix_dir`.'''
+    originals_dir: str
+    '''Python format string for the directory the unmodified original is
+    archived to. Keys reference frontmatter values on the *input* note
+    as the service first observes it. The resolved path must be a child
+    of `prefix_dir`.'''
     name: str | None = None
 
     @model_validator(mode='after')
     def _expand(self) -> Self:
         self.input_dir = Path(self.input_dir).expanduser().resolve()
-        self.output_dir = Path(self.output_dir).expanduser().resolve()
-        self.originals_dir = Path(self.originals_dir).expanduser().resolve()
+        self.prefix_dir = Path(self.prefix_dir).expanduser().resolve()
         return self
+
+    def resolve_output(self, metadata: dict[str, Any]) -> Path:
+        return self._resolve(self.output_dir, metadata, 'output_dir')
+
+    def resolve_originals(self, metadata: dict[str, Any]) -> Path:
+        return self._resolve(self.originals_dir, metadata, 'originals_dir')
+
+    def _resolve(self, template: str, metadata: dict[str, Any], field: str) -> Path:
+        try:
+            formatted = template.format_map(metadata)
+        except KeyError as e:
+            raise ValueError(
+                f'{field} template {template!r} references missing key {e}'
+            ) from e
+        candidate = Path(formatted).expanduser().resolve()
+        if not candidate.is_relative_to(self.prefix_dir):
+            raise ValueError(
+                f'{field} resolved to {candidate} which is not under '
+                f'prefix_dir {self.prefix_dir}'
+            )
+        return candidate
 
 
 class ServiceCfg(BaseModel):
